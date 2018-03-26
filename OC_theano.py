@@ -122,7 +122,7 @@ class AOCAgent_THEANO():
 
   def set_rms_shared_weights(self, shared_arr):
     if shared_arr is not None:
-      self.shared_arr = [np.frombuffer(s, dtype="float32").reshape(p.get_value().shape) for s, p in zip(shared_arr, self.params)] 
+      self.shared_arr = [np.frombuffer(s, dtype="float32").reshape(p.get_value().shape) for s, p in zip(shared_arr, self.params)]
       self.rms_shared_arr = shared_arr[len(self.params):]
       if self.args.init_num_moves > 0:
         for s, p in zip(shared_arr, self.params):

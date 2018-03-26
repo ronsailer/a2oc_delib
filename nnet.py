@@ -2,7 +2,7 @@ import theano, lasagne
 import theano.tensor as T
 import math, csv, time, sys, os, pdb, copy
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
-from lasagne.layers import Conv2DLayer, conv, Upscale2DLayer
+from lasagne.layers import Conv2DLayer, conv
 if theano.config.device.startswith("gpu"):
   from lasagne.layers import cuda_convnet
 import numpy as np
