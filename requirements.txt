@@ -1,0 +1,8 @@
+numpy
+theano
+opencv-python
+lasagne
+gym[atari]
+matplotlib
+image
+argparse

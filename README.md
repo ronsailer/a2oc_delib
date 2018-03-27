@@ -1,3 +1,16 @@
+
+# Expanding the work of Jean Harb, Pierre-Luc Bacon, Martin Klissarov and Diona Precup
+
+## Fixes I had to do in order to make the code run:
+
+- Install the dependencies
+- Make sure that .theanorc has floatX=float32 configured
+- Lasagne is incompatible with the latest version of Theano. You need to manually edit it and change "from theano.tensor.signal.pool import max_pool_2d" to "from theano.tensor.signal.pool import pool_2d" and the corresponding function calls.
+
+
+# Original content from forked repo:
+
+
 # When Waiting is not an Option : Learning Options with a Deliberation Cost
 
 Arxiv link: https://arxiv.org/pdf/1709.04571.pdf
