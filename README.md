@@ -5,7 +5,7 @@
 
 - Install the dependencies
 - Make sure that .theanorc has floatX=float32 configured
-- Lasagne is incompatible with the latest version of Theano. You need to manually edit it and change "from theano.tensor.signal.pool import max_pool_2d" to "from theano.tensor.signal.pool import pool_2d" and the corresponding function calls.
+- Lasagne is incompatible with the latest version of Theano. You need to manually edit it and change "from theano.tensor.signal import downsample" to "from theano.tensor.signal.pool import pool_2d" and then corresponding function calls, so instead of downsample.max_pool_2d you will now simply call pool_2d.
 
 
 # Original content from forked repo:
