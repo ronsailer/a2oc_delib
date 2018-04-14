@@ -28,8 +28,6 @@ class ALE_env(Environment):
     self.action_space = self.env.action_space.n
     self.obs_space = self.env.observation_space.shape
 
-    print self.obs_space
-
     if self.args.testing:
       import matplotlib.pyplot as plt
       plt.ion()
@@ -77,7 +75,7 @@ class ALE_env(Environment):
     self.current_x[-a:] = new_frame
 
   def act(self, action):
-    raw_reward, dones, done = 0, 0, False
+    raw_reward, dones, done = 0.0, 0, False
     for i in range(self.args.frame_skip):
       if done:
         break
