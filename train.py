@@ -1,8 +1,7 @@
-from multiprocessing import Process, Value, Array, RawArray
-from collections import OrderedDict
+from multiprocessing import Process, Value, Array
 import numpy as np
 from OC_theano import AOCAgent_THEANO
-import cv2,copy,sys,pickle,os,time,argparse
+import cv2,copy,pickle,os,time,argparse
 from PIL import Image
 from utils.helper import foldercreation, str2bool, get_folder_name
 
@@ -22,12 +21,14 @@ class Environment():
 class ALE_env(Environment):
   def __init__(self, args, rng=None):
     import gym
-    env = gym.make(args.sub_env+"NoFrameskip-v4")
+    env = gym.make(args.sub_env)
     self.args = args
     self.rng = rng
     self.env = env
     self.action_space = self.env.action_space.n
     self.obs_space = self.env.observation_space.shape
+
+    print self.obs_space
 
     if self.args.testing:
       import matplotlib.pyplot as plt
@@ -35,7 +36,8 @@ class ALE_env(Environment):
       plt.show(block=False)
 
   def get_lives(self):
-    return self.env.unwrapped.ale.lives()
+    # return self.env.unwrapped.ale.lives()
+    return 1
 
   def noops(self):
     num_actions = self.rng.randint(1, self.args.max_start_nullops)
@@ -45,7 +47,7 @@ class ALE_env(Environment):
       self.act(1)
 
   def reset(self):
-    self.current_x = np.zeros((self.args.concat_frames*(1 if self.args.grayscale else 3), 84, 84), dtype="float32")
+    self.current_x = np.zeros((self.args.concat_frames*(1 if self.args.grayscale else 3), 8, 8), dtype="float32")
     self.new_obs = self.env.reset()
     self.lives = self.get_lives()
     self.noops()
@@ -87,7 +89,7 @@ class ALE_env(Environment):
     new_frame = self.preprocess(self.new_obs, self.old_obs)
     self.get_new_frame(new_frame)
     dones += (self.get_frame_count() > self.args.max_frames_ep)
-    
+
     new_lives = self.get_lives()
     death = new_lives < self.lives
     self.lives = new_lives
@@ -102,7 +104,7 @@ class ALE_env(Environment):
       proportions = [0.299, 0.587, 0.114]
       im = np.sum(im * proportions, axis=2)
     #im = cv2.resize(im, (84, 110), interpolation=cv2.INTER_AREA)[18:102, :]
-    im = Image.fromarray(im).resize((84, 84), resample=Image.BILINEAR)
+    im = Image.fromarray(im).resize((8, 8), resample=Image.BILINEAR)
     x = np.array(im).astype("int32")
     if not self.args.grayscale:
       x = np.swapaxes(x, 0, 2)
@@ -110,7 +112,9 @@ class ALE_env(Environment):
     return x
 
   def get_frame_count(self):
-    return self.env.unwrapped.ale.getEpisodeFrameNumber()
+    # return self.env.unwrapped.ale.getEpisodeFrameNumber()
+    return 1
+
 
 class Training():
   def __init__(self, rng, id_num, arr, num_moves, args):
@@ -134,20 +138,29 @@ class Training():
     total_games = 0
     done = False
 
+    last_num_moves = 0
+
     while self.num_moves.value < self.args.max_num_frames:
       if done:
         #ugly code, beautiful print
         total_games += 1
         secs = round(time.time()-timer, 1)
         frames = self.env.get_frame_count()
-        fps = int(frames/secs)
-        recent_fps = recent_fps[-9:]+[fps]
-        eta = ((self.args.max_num_frames-self.num_moves.value)*self.args.frame_skip/(self.args.num_threads*np.mean(recent_fps)))
-        print "id: %d\treward: %d\ttime: %.1f\tframes: %d\t %dfps  \tmoves: %d \t ETA: %dh %dm %ds  \t%.2f%%" % \
-        (self.id_num, total_reward, secs, frames, fps, self.num_moves.value, int(eta/3600), int(eta/60)%60, int(eta%60), 
-          float(self.num_moves.value)/self.args.max_num_frames*100)
+        # fps = int(frames/secs)
+        # recent_fps = recent_fps[-9:]+[fps]
+        # eta = ((self.args.max_num_frames-self.num_moves.value)*self.args.frame_skip/(self.args.num_threads*np.mean(recent_fps)))
+        # print "id: %d\treward: %d\ttime: %.1f\tframes: %d\t %dfps  \tmoves: %d \t ETA: %dh %dm %ds  \t%.2f%%" % \
+        # (self.id_num, total_reward, secs, frames, fps, self.num_moves.value, int(eta/3600), int(eta/60)%60, int(eta%60),
+        #   float(self.num_moves.value)/self.args.max_num_frames*100)
+
+        print "id: %d\t reward: %d\t moves: %d\t marginal moves: %d\t\t %.2f%%" % (self.id_num, total_reward,
+                                                                                   self.num_moves.value,
+                                                                                   self.num_moves.value - last_num_moves,
+                                                                                   float(self.num_moves.value)/self.args.max_num_frames*100)
         timer = time.time()
         frame_counter = 0
+
+        last_num_moves = self.num_moves.value
 
         if total_games % 1 == 0 and self.id_num == 1 and not self.args.testing:
           self.agent.save_values(folder_name)
@@ -158,6 +171,9 @@ class Training():
         done = False
 
       action = self.agent.get_action(x)
+
+      # print action
+
       new_x, reward, done, death = self.env.act(action)
       self.agent.store(x, new_x, action, reward, done, death)
       if self.args.testing:
@@ -167,11 +183,11 @@ class Training():
 
 def parse_params():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--sub-env', type=str, default="Breakout")
+  parser.add_argument('--sub-env', type=str, default="Gridworld2-v0")
   parser.add_argument('--testing', type=str2bool, default=False)
   parser.add_argument('--update-freq', type=int, default=5)
   parser.add_argument('--max-update-freq', type=int, default=30)
-  parser.add_argument('--num-threads', type=int, default=16)
+  parser.add_argument('--num-threads', type=int, default=4)
   parser.add_argument('--death-ends-episode', type=str2bool, default=True)
   parser.add_argument('--max-start-nullops', type=int, default=30)
   parser.add_argument('--frame-skip', type=int, default=4)
@@ -183,8 +199,8 @@ def parse_params():
   parser.add_argument('--color-averaging', type=str2bool, default=False)
   parser.add_argument('--color-max', type=str2bool, default=True)
   parser.add_argument('--grayscale', type=str2bool, default=True)
-  parser.add_argument('--max-num-frames', type=int, default=80000000)
-  parser.add_argument('--max-frames-ep', type=int, default=72000)
+  parser.add_argument('--max-num-frames', type=int, default=1e7)
+  parser.add_argument('--max-frames-ep', type=int, default=1e5)
   parser.add_argument('--init-lr', type=float, default=0.0007)
   parser.add_argument('--rms-shared', type=str2bool, default=True)
   parser.add_argument('--critic-coef', type=float, default=1.)
@@ -192,7 +208,7 @@ def parse_params():
   parser.add_argument('--option-epsilon', type=float, default=0.1)
   parser.add_argument('--delib-cost', type=float, default=0.0)
   parser.add_argument('--margin-cost', type=float, default=0.0)
-  parser.add_argument('--save-path', type=str, default="models") 
+  parser.add_argument('--save-path', type=str, default="models")
   parser.add_argument('--load-folder', type=str, default="") # if not empty, will load folder to resume training
   parser.add_argument('--folder-name', type=str, default="")
   parser.add_argument('--resume-if-exists', type=str2bool, default=False) # for server that kills and restarts processes
@@ -236,7 +252,7 @@ if __name__ == '__main__':
   env = ALE_env(params)
   if init_num_moves == 0:
     init_weights = (AOCAgent_THEANO(env.action_space, 0, args=params)).get_param_vals()
-    
+
   num_moves = Value("i", init_num_moves, lock=False)
   arr = [Array('f', m.flatten(), lock=False) for m in init_weights]
   seed = np.random.randint(10000)

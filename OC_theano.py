@@ -5,8 +5,11 @@ import theano.tensor as T
 from lasagne.updates import norm_constraint
 from collections import OrderedDict
 
+# do not delete this line. Importing gym_gridworld registers the environments in gym. Hacky but deal with it
+import gym_gridworld
+
 def clip_grads(grads, clip, clip_type):
-  if clip > 0.1: 
+  if clip > 0.1:
     if clip_type == "norm":
       grads = [norm_constraint(p, clip) if p.ndim > 1 else T.clip(p, -clip, clip) for p in grads]
     elif clip_type == "global":
@@ -14,6 +17,7 @@ def clip_grads(grads, clip, clip_type):
       scale = clip * T.min([1/norm,1./clip]).astype("float32")
       grads = [g*scale for g in grads]
   return grads
+
 
 def rmsprop(params, grads, clip=0, rho=0.99, eps=0.1, clip_type="norm"):
   grads = clip_grads(grads, clip, clip_type)
@@ -37,11 +41,12 @@ class AOCAgent_THEANO():
     self.num_moves = num_moves
     self.reset_storing()
     self.rng = np.random.RandomState(100+id_num)
-    model_network = [{"model_type": "conv", "filter_size": [8,8], "pool": [1,1], "stride": [4,4], "out_size": 16, "activation": "relu"},
-                     {"model_type": "conv", "filter_size": [4,4], "pool": [1,1], "stride": [2,2], "out_size": 32, "activation": "relu"},
-                     {"model_type": "mlp", "out_size": 256, "activation": "relu"}]
+    model_network = [{"model_type": "conv", "filter_size": [4,4], "pool": [1,1], "stride": [2,2], "out_size": 32, "activation": "relu"},
+                     {"model_type": "conv", "filter_size": [3,3], "pool": [1,1], "stride": [2,2], "out_size": 64, "activation": "relu"},
+                     {"model_type": "mlp", "out_size": 48, "activation": "relu"},
+                     {"model_type": "mlp", "out_size": 32, "activation": "relu"}]
     out = [None,model_network[-1]["out_size"]]
-    self.conv = Model(model_network, input_size=[None,args.concat_frames*(1 if args.grayscale else 3),84,84])
+    self.conv = Model(model_network, input_size=[None,args.concat_frames*(1 if args.grayscale else 3),8,8])
     self.termination_model = Model([{"model_type": "mlp", "out_size": args.num_options, "activation": "sigmoid", "W":0}], input_size=out)
     self.Q_val_model = Model([{"model_type": "mlp", "out_size": args.num_options, "activation": "linear", "W":0}], input_size=out)
     self.options_model = MLP3D(input_size=out[1], num_options=args.num_options, out_size=num_actions, activation="softmax")
@@ -74,7 +79,7 @@ class AOCAgent_THEANO():
     entropy = -aggr(T.sum(intra_option_policy*T.log(intra_option_policy+log_eps), axis=1))*args.entropy_reg
     pg = aggr((T.log(intra_option_policy[T.arange(a.shape[0]), a]+log_eps)) * (y-disc_opt_q))
     cost = pg + entropy - critic_cost - termination_grad
-    
+
     grads = T.grad(cost*args.update_freq, self.params)
     #grads = T.grad(cost, self.params)
     updates, grad_rms, self.rms_weights = rmsprop(self.params, grads, clip=args.clip, clip_type=args.clip_type)
@@ -133,7 +138,7 @@ class AOCAgent_THEANO():
     # Ties rms params between threads with borrow=True flag
     if self.args.rms_shared and shared_arr is not None:
       assert(len(self.rms_weights) == len(self.rms_shared_arr))
-      for rms_w, s_rms_w in zip(self.rms_weights, self.rms_shared_arr): 
+      for rms_w, s_rms_w in zip(self.rms_weights, self.rms_shared_arr):
         rms_w.set_value(np.frombuffer(s_rms_w, dtype="float32").reshape(rms_w.get_value().shape), borrow=True)
 
   def get_action(self, x):
@@ -179,18 +184,18 @@ class AOCAgent_THEANO():
     self.reset_tracker()
     self.update_internal_state(x)
     self.initialized = True
-    
+
   def reset_storing(self):
     self.a_seq = np.zeros((self.args.max_update_freq,), dtype="int32")
     self.o_seq = np.zeros((self.args.max_update_freq,), dtype="int32")
     self.r_seq = np.zeros((self.args.max_update_freq,), dtype="float32")
-    self.x_seq = np.zeros((self.args.max_update_freq, self.args.concat_frames*(1 if self.args.grayscale else 3),84,84),dtype="float32")
+    self.x_seq = np.zeros((self.args.max_update_freq, self.args.concat_frames*(1 if self.args.grayscale else 3),8,8),dtype="float32")
     self.t_counter = 0
 
   def store(self, x, new_x, action, raw_reward, done, death):
     end_ep = done or (death and self.args.death_ends_episode)
     self.frame_counter += 1
-    
+
     self.total_reward += raw_reward
     reward = np.clip(raw_reward, -1, 1)
 
@@ -204,7 +209,7 @@ class AOCAgent_THEANO():
 
     self.t_counter += 1
 
-    # do n-step return to option termination. 
+    # do n-step return to option termination.
     # cut off at self.args.max_update_freq
     # min steps: self.args.update_freq (usually 5 like a3c)
     # this doesn't make option length a minimum of 5 (they can still terminate). only batch size
@@ -217,7 +222,7 @@ class AOCAgent_THEANO():
         for j in range(self.t_counter-1,-1,-1):
           R = np.float32(self.r_seq[j] + self.args.gamma*R)
           V.append(R)
-        self.update_weights(self.x_seq[:self.t_counter], self.a_seq[:self.t_counter], V[::-1], 
+        self.update_weights(self.x_seq[:self.t_counter], self.a_seq[:self.t_counter], V[::-1],
                             self.o_seq[:self.t_counter], self.t_counter, self.delib+self.args.margin_cost)
       self.reset_storing()
     if not end_ep:
