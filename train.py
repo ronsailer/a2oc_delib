@@ -77,7 +77,7 @@ class ALE_env(Environment):
     self.current_x[-a:] = new_frame
 
   def act(self, action):
-    raw_reward, dones, done = 0, 0, False
+    raw_reward, dones, done = 0.0, 0, False
     for i in range(self.args.frame_skip):
       if done:
         break

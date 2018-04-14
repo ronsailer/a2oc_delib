@@ -40,7 +40,7 @@ class GridworldEnv(gym.Env):
         self.stochastic = stochastic
         self.actions = [NOOP, UP, DOWN, LEFT, RIGHT]
         self.inv_actions = [0, 1, 2, 3, 4]
-        self.action_space = spaces.Discrete(5)
+        self.action_space = spaces.Discrete(len(self.inv_actions))
         self.action_pos_dict = {NOOP: [0, 0], UP: [-1, 0], DOWN: [1, 0], LEFT: [0, -1], RIGHT: [0, 1]}
         self.img_shape = [256, 256, 3]  # observation space shape
 
@@ -56,6 +56,7 @@ class GridworldEnv(gym.Env):
 
         # agent state: start, target, current state
         self.agent_start_state, self.agent_target_state = self.get_agent_start_and_target_state()
+        self.last_state = None
 
         # set other parameters
         self.restart_once_done = False  # restart or not once done
@@ -84,19 +85,25 @@ class GridworldEnv(gym.Env):
         #     done = True
         #     reward = -100
         #     return self.current_grid_map, reward, done, info
-        print "----------------------------"
-        print "next_agent_state:", nxt_agent_state
+        # print "----------------------------"
+        # print "next_agent_state:", nxt_agent_state
+        # print "action {}: {}".format(action, self.action_pos_dict[action])
 
         if action == NOOP:
-            reward = -0.2
+            # reward -= 0.5
             return self.current_grid_map, reward, False, info
         next_state_out_of_map = (nxt_agent_state[0] < 0 or nxt_agent_state[0] >= self.grid_map_shape[0]) or \
                                 (nxt_agent_state[1] < 0 or nxt_agent_state[1] >= self.grid_map_shape[1])
-        print "grid map shape:", self.grid_map_shape
+        # print "grid map shape:", self.grid_map_shape
         if next_state_out_of_map:
-            print "out of map"
+            # print "out of map"
             info['success'] = False
             return self.current_grid_map, reward, False, info
+        # print nxt_agent_state, self.last_state, nxt_agent_state == self.last_state
+        if nxt_agent_state == self.last_state:
+            # print "last state"
+            # reward -= 1.0
+            pass
 
         # successful behavior
         target_position = self.current_grid_map[nxt_agent_state[0], nxt_agent_state[1]]
@@ -104,7 +111,8 @@ class GridworldEnv(gym.Env):
         if (target_position == EMPTY).all():
             self.current_grid_map[nxt_agent_state[0], nxt_agent_state[1]] = AGENT
         elif (target_position == WALL).all():
-            # reward = -0.5
+            # print "wall"
+            # reward -= 0.5
             info['success'] = False
             return self.current_grid_map, reward, False, info
         elif (target_position == TARGET).all():
@@ -116,10 +124,12 @@ class GridworldEnv(gym.Env):
             reward = -1000
             # self.current_grid_map[nxt_agent_state[0], nxt_agent_state[1]] = MINE
 
+
         # if done and self.restart_once_done:
         #     self._reset()
         #     return self.current_grid_map, reward, done, info
 
+        self.last_state = self.agent_state
         self.current_grid_map[self.agent_state[0], self.agent_state[1]] = EMPTY
         self.agent_state = copy.deepcopy(nxt_agent_state)
         return self.current_grid_map, reward, done, info
@@ -154,10 +164,12 @@ class GridworldEnv(gym.Env):
 
     def select_stochastic(self, grid_map_array, type):
         target_idxs = np.nonzero(grid_map_array == type)
-        selected_target = np.random.randint(len(target_idxs[0]))
+        num_of_channels = grid_map_array.shape[-1]
+        channels = np.arange(num_of_channels)
+        selected_target = np.random.randint(len(target_idxs[0]) / num_of_channels)
         new_target_idxs = [[], []]
-        new_target_idxs[0] = np.delete(target_idxs[0], selected_target)
-        new_target_idxs[1] = np.delete(target_idxs[1], selected_target)
+        new_target_idxs[0] = np.delete(target_idxs[0], (num_of_channels * selected_target) + channels)
+        new_target_idxs[1] = np.delete(target_idxs[1], (num_of_channels * selected_target) + channels)
         grid_map_array[new_target_idxs] = EMPTY
 
     def get_agent_start_and_target_state(self):
