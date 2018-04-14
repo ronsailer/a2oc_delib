@@ -6,11 +6,16 @@ from gym import spaces
 from gym.utils import seeding
 import numpy as np
 
-EMPTY = BLACK = 0
-WALL = GRAY = 1
-MINE = RED = 2
-TARGET = GREEN = 3
-AGENT = BLUE = 4
+EMPTY = (0,0,0)
+BLACK = 0
+WALL = (1,1,1)
+GRAY = 1
+MINE = (2,2,2)
+RED = 2
+TARGET = (3,3,3)
+GREEN = 3
+AGENT = (4,4,4)
+BLUE = 4
 SUCCESS = PINK = 6
 YELLOW = 7
 COLORS = {BLACK: [0.0, 0.0, 0.0], GRAY: [0.5, 0.5, 0.5],
@@ -79,30 +84,34 @@ class GridworldEnv(gym.Env):
         #     done = True
         #     reward = -100
         #     return self.current_grid_map, reward, done, info
+        print "----------------------------"
+        print "next_agent_state:", nxt_agent_state
 
         if action == NOOP:
             reward = -0.2
             return self.current_grid_map, reward, False, info
-        next_state_out_of_map = (nxt_agent_state[0] < 0 or nxt_agent_state[0] >= self.grid_map_shape[1]) or \
-                                (nxt_agent_state[1] < 0 or nxt_agent_state[1] >= self.grid_map_shape[2])
+        next_state_out_of_map = (nxt_agent_state[0] < 0 or nxt_agent_state[0] >= self.grid_map_shape[0]) or \
+                                (nxt_agent_state[1] < 0 or nxt_agent_state[1] >= self.grid_map_shape[1])
+        print "grid map shape:", self.grid_map_shape
         if next_state_out_of_map:
+            print "out of map"
             info['success'] = False
             return self.current_grid_map, reward, False, info
 
         # successful behavior
         target_position = self.current_grid_map[nxt_agent_state[0], nxt_agent_state[1]]
 
-        if target_position.all() == EMPTY:
+        if (target_position == EMPTY).all():
             self.current_grid_map[nxt_agent_state[0], nxt_agent_state[1]] = AGENT
-        elif target_position.all() == WALL:
+        elif (target_position == WALL).all():
             # reward = -0.5
             info['success'] = False
             return self.current_grid_map, reward, False, info
-        elif target_position.all() == TARGET:
+        elif (target_position == TARGET).all():
             done = True
             reward = 1000
             # self.current_grid_map[nxt_agent_state[0], nxt_agent_state[1]] = SUCCESS
-        elif target_position.all() == MINE:
+        elif (target_position == MINE).all():
             done = True
             reward = -1000
             # self.current_grid_map[nxt_agent_state[0], nxt_agent_state[1]] = MINE
@@ -155,7 +164,7 @@ class GridworldEnv(gym.Env):
         start_state = np.where(self.current_grid_map == AGENT)
         target_state = np.where(self.current_grid_map == TARGET)
 
-        start_or_target_not_found = not(start_state[0].any() and target_state[0].any())
+        start_or_target_not_found = not(start_state[0].all() and target_state[0].all())
         if start_or_target_not_found:
             sys.exit('Start or target state not specified')
         start_state = (start_state[0][0], start_state[1][0])
@@ -172,7 +181,7 @@ class GridworldEnv(gym.Env):
         for i in range(self.current_grid_map.shape[0]):
             for j in range(self.current_grid_map.shape[1]):
                 for k in range(3):
-                    this_value = COLORS[self.current_grid_map[i, j]][k]
+                    this_value = COLORS[self.current_grid_map[i, j][0]][k]
                     observation[i * gs0:(i + 1) * gs0, j * gs1:(j + 1) * gs1, k] = this_value
         return (255*observation).astype(np.uint8)
 
