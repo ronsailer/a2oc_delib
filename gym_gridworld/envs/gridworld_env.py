@@ -42,7 +42,7 @@ class GridworldEnv(gym.Env):
         self.inv_actions = [0, 1, 2, 3, 4]
         self.action_space = spaces.Discrete(len(self.inv_actions))
         self.action_pos_dict = {NOOP: [0, 0], UP: [-1, 0], DOWN: [1, 0], LEFT: [0, -1], RIGHT: [0, 1]}
-        self.img_shape = [256, 256, 3]  # observation space shape
+        self.img_shape = [8, 8, 3]  # observation space shape
 
         # initialize system state
         this_file_path = os.path.dirname(os.path.realpath(__file__))
@@ -76,7 +76,7 @@ class GridworldEnv(gym.Env):
         action = int(action)
         info = {'success': True}
         done = False
-        reward = -0.1
+        reward = -0.0
         nxt_agent_state = (self.agent_state[0] + self.action_pos_dict[action][0],
                            self.agent_state[1] + self.action_pos_dict[action][1])
 
